@@ -4,11 +4,12 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/dhruv2223/reeling-it/handlers"
 	"github.com/dhruv2223/reeling-it/logger"
 )
 
 func InitializeLogger() *logger.Logger {
-	appLogger, err := logger.NewLogger("./logs/app.log")
+	appLogger, err := logger.NewLogger("./app.log")
 	if err != nil {
 		log.Fatalf("Could not create logger: %v", err)
 	}
@@ -16,14 +17,18 @@ func InitializeLogger() *logger.Logger {
 }
 
 func main() {
-	var addr string = ":8080"
-	server := http.NewServeMux()
-	server.Handle("/", http.FileServer(http.Dir("./public")))
+
 	appLogger := InitializeLogger()
 	defer appLogger.Close()
+	var addr string = ":8080"
+	server := http.NewServeMux()
+
+	movieHandler := handlers.MovieHandler{}
+	server.HandleFunc("/api/movies/top", movieHandler.GetTopMovies)
+	server.HandleFunc("/api/movies/random", movieHandler.GetRandomMovies)
+	server.Handle("/", http.FileServer(http.Dir("./public")))
 	err := http.ListenAndServe(addr, server)
 	if err != nil {
 		appLogger.Error("Error starting server", err)
 	}
-
 }

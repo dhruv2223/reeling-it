@@ -18,19 +18,18 @@ func NewLogger(logFilePath string) (*Logger, error) {
 		return nil, err
 	}
 	return &Logger{
-		infoLogger: log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile), 
-    errorLogger: log.New(file,"Error:",log.Ldate|log.Ltime,log.Lshortfile), 
-    file:file
-	},nil
-} 
+			infoLogger:  log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile),
+			errorLogger: log.New(file, "Error:", log.Ldate|log.Ltime|log.Lshortfile),
+			file:        file},
+		nil
+}
 
-func (l *Logger) Info(msg string){
-  l.infoLogger.Printf("%s",msg)
-} 
-func (l *Logger) Error(msg string,err error){
-  l.errorLogger.Printf("%s: %v",msg,err)
-} 
-func (l *Logger) Close(){
-  l.file.Close()
-} 
-
+func (l *Logger) Info(msg string) {
+	l.infoLogger.Printf("%s", msg)
+}
+func (l *Logger) Error(msg string, err error) {
+	l.errorLogger.Printf("%s: %v", msg, err)
+}
+func (l *Logger) Close() {
+	l.file.Close()
+}
