@@ -1,11 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/dhruv2223/reeling-it/handlers"
 	"github.com/dhruv2223/reeling-it/logger"
+	"github.com/joho/godotenv"
 )
 
 func InitializeLogger() *logger.Logger {
@@ -20,6 +23,24 @@ func main() {
 
 	appLogger := InitializeLogger()
 	defer appLogger.Close()
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error loading .env file: %v", err)
+		return
+	}
+
+	dbConnString := os.Getenv("DATABASE_URL")
+	if dbConnString == "" {
+		log.Fatal("DATABASE_URL environment variable is not set")
+		return
+	}
+	db, err := sql.Open("postgres", dbConnString)
+	if err != nil {
+		log.Fatal("Error connecting to the database: %v", err)
+
+	}
+	defer db.Close()
+
 	var addr string = ":8080"
 	server := http.NewServeMux()
 
@@ -27,7 +48,7 @@ func main() {
 	server.HandleFunc("/api/movies/top", movieHandler.GetTopMovies)
 	server.HandleFunc("/api/movies/random", movieHandler.GetRandomMovies)
 	server.Handle("/", http.FileServer(http.Dir("./public")))
-	err := http.ListenAndServe(addr, server)
+	err = http.ListenAndServe(addr, server)
 	if err != nil {
 		appLogger.Error("Error starting server", err)
 	}
