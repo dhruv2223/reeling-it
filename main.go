@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/dhruv2223/reeling-it/data"
 	"github.com/dhruv2223/reeling-it/handlers"
 	"github.com/dhruv2223/reeling-it/logger"
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func InitializeLogger() *logger.Logger {
@@ -25,7 +27,7 @@ func main() {
 	defer appLogger.Close()
 	err := godotenv.Load(".env")
 	if err != nil {
-		log.Fatal("Error loading .env file: %v", err)
+		log.Fatalf("Error loading .env file: %v", err)
 		return
 	}
 
@@ -36,17 +38,21 @@ func main() {
 	}
 	db, err := sql.Open("postgres", dbConnString)
 	if err != nil {
-		log.Fatal("Error connecting to the database: %v", err)
+		log.Fatalf("Error connecting to the database: %v", err)
 
 	}
 	defer db.Close()
 
 	var addr string = ":8080"
 	server := http.NewServeMux()
+	movieRepo, _ := data.NewMovieRepository(db, appLogger)
 
-	movieHandler := handlers.MovieHandler{}
+	movieHandler := handlers.NewMovieHandler(movieRepo, appLogger)
 	server.HandleFunc("/api/movies/top", movieHandler.GetTopMovies)
 	server.HandleFunc("/api/movies/random", movieHandler.GetRandomMovies)
+	server.HandleFunc("/api/movies/search", movieHandler.SearchMovies)
+	server.HandleFunc("/api/movies", movieHandler.GetMovie)
+	server.HandleFunc("/api/genres", movieHandler.GetGenre)
 	server.Handle("/", http.FileServer(http.Dir("./public")))
 	err = http.ListenAndServe(addr, server)
 	if err != nil {

@@ -1,5 +1,8 @@
 .DS_Store 
 public/
 import/  
-.env
+.env 
+**/app.log 
+
+tmp/
 README.md
