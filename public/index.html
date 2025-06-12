@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ReelingIt - Movies</title>
+    <link href="/styles.css" rel="stylesheet" />
+    <link href="/app.webmanifest" rel="manifest" />
+    <link rel="icon" href="/images/icon.png" /> 
+    <script src="/app.js" type="module" defer></script>  
+    <base href="/" >
+  </head>
+  <body>
+    <header>
+      <h1><img src="images/logo.png" alt="ReelingIt" height="35" ></h1>
+      <nav>
+        <ul>
+          <li><a class="navlink"  href="/">Movies</a></li> 
+          <li><a class="navlink" href="/account/favourites">Favourites</a></li> 
+          <li><a class="navlink" href="/account/watchlist">Watchlist</a></li> 
+          <li><a class="navlink" href="/account">My Account</a></li>
+        </ul>
+      </nav>  
+      <div>
+      <form onsubmit="app.search(event)">
+        <input type="search" placeholder="Search movies"></input>
+      </form> 
+      </div>
+    </header>
+    <main> 
+    </main>  
+    <dialog id="alert-mode"> 
+      <h3>Error</h3> 
+      <p>There was an Error loading the page</p> 
+      <button onclick="app.closeError()">OK</button>
+      
+    </dialog>
+    <!-- Templates--> 
+    <template id="template-home">
+      <section class="vertical-scroll" id="top-10">
+        <h2>This Week's Top Movies</h2> 
+
+      <ul></ul>
+      </section> 
+      <section class="vertical-scroll" id="random">
+        <ul></ul>
+        <h2>Something to watch today</h2> 
+      </section>
+    </template>
+
+
+    <template id="template-movie-details">
+        <article id="movie">
+            <h2><animated-loading elements="2"></animated-loading></h2>
+            <h3></h3>
+            <header>
+                <img src="" alt="Poster">
+                <youtube-embed id="trailer" data-url=""></youtube-embed>
+                <section id="actions">
+                    <dl id="metadata">
+                    </dl>
+                    <button>Add to Favorites</button>
+                    <button>Add to Watchlist</button>    
+                </section>
+            </header>
+            <ul id="genres"></ul>
+            <p id="overview"></p>
+            <ul id="cast"></ul>
+        </article>
+    </template> 
+
+
+    <template id="template-movies">
+            <section>
+                <div id="search-header">
+                    <h2></h2>
+                    <section id="filters">
+                        <select id="filter" onchange="app.searchFilterChange(this.value)">
+                            <option>Filter by Genre</option>                        
+                        </select>
+                        <select id="order" onchange="app.searchOrderChange(this.value)">
+                            <option value="popularity">Sort by Popularity</option>
+                            <option value="score">Sort by Score</option>
+                            <option value="date">Sort by Release Date</option>
+                            <option value="name">Sort by Name</option>
+                        </select>
+                    </section>
+                </div>
+                <ul id="movies-result">
+                    <animated-loading data-elements="5"
+                        data-width="150px" data-height="220px">
+                    </animated-loading> 
+                </ul>
+            </section>
+    </template> 
+    <footer>
+      <p>(C) ReelingIt</p>
+    </footer>
+  </body>
+</html>

@@ -53,7 +53,17 @@ func main() {
 	server.HandleFunc("/api/movies/search", movieHandler.SearchMovies)
 	server.HandleFunc("/api/movies", movieHandler.GetMovie)
 	server.HandleFunc("/api/genres", movieHandler.GetGenre)
+
+	catchAllClientRoutesHandler := func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./public/index.html")
+	}
+	server.HandleFunc("/movies", catchAllClientRoutesHandler)
+
+	server.HandleFunc("/movies/", catchAllClientRoutesHandler)
+	server.HandleFunc("/account", catchAllClientRoutesHandler)
+
 	server.Handle("/", http.FileServer(http.Dir("./public")))
+
 	err = http.ListenAndServe(addr, server)
 	if err != nil {
 		appLogger.Error("Error starting server", err)
