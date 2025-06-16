@@ -16,9 +16,9 @@
       <nav>
         <ul>
           <li><a class="navlink"  href="/">Movies</a></li> 
-          <li><a class="navlink" href="/account/favourites">Favourites</a></li> 
+          <li><a class="navlink" href="/account/favorites">Favorites</a></li> 
           <li><a class="navlink" href="/account/watchlist">Watchlist</a></li> 
-          <li><a class="navlink" href="/account">My Account</a></li>
+          <li><a class="navlink" href="/account/">My Account</a></li>
         </ul>
       </nav>  
       <div>
@@ -59,8 +59,8 @@
                 <section id="actions">
                     <dl id="metadata">
                     </dl>
-                    <button>Add to Favorites</button>
-                    <button>Add to Watchlist</button>    
+                    <button id="btnfavorite">Add to Favorites</button>
+                    <button id="btnwatchlist">Add to Watchlist</button>    
                 </section>
             </header>
             <ul id="genres"></ul>
@@ -92,7 +92,59 @@
                     </animated-loading> 
                 </ul>
             </section>
+    </template>  
+    <template id="template-register">
+      <section> 
+        <h2>Register a New Account</h2> 
+        <form onsubmit="app.register(event)">
+          <label for="register-name">Name</label> 
+          <input id="register-name" type="text" required autocomplete="name"></input> 
+
+          <label for="register-email">E-mail</label> 
+          <input id="register-email" type="email" required autocomplete="email"></input> 
+
+          <label for="register-password">Password</label> 
+          <input id="register-password" type="password" required autocomplete="new-password"></input> 
+          
+          <label for="register-password-confirmation">Repeat Your Password</label> 
+          <input id="register-password-confirmation" type="password" required ></input>  
+          <button>Register</button>
+          <p>If you already have a account, please <a href="/account/login">log in</a>.</p>
+        </form>
+      </section>
     </template> 
+  
+    <template id="template-login">
+      <section>
+        <h2>Log in to Your Account</h2>
+        <form onsubmit="app.login(event)">
+          <label for="login-email">E-mail</label>  
+          <input id="login-email" type="email" required autocomplete="email"></input> 
+
+          <label for="login-password">Password</label>  
+          <input id="login-password" type="password" required autocomplete="current-password"></input>   
+
+          <button>Log In</button> 
+          <p>If you don't have an account please <a href="/account/register"> register</a></p>
+        </form>
+      </section>
+    </template> 
+    <template id="template-account">
+      <section id="account">
+        <h2>You are Logged In</h2> 
+        <button onClick="app.logout()">Log out</button> 
+        <button onclick="app.Router.go('/account/favorites')">Your Favorites</button> 
+        <button onclick="app.Router.go('/account/watchlist')">Your Watchlist</button>
+      </section>
+    </template> 
+    <template id="template-collection"> 
+      <section> 
+        <h2></h2>
+        <ul id="movies-result">
+          <animated-loading data-elements="5" data-width="150px" data-height="220px"></animated-loading>
+        </ul>
+      </section>
+    </template>
     <footer>
       <p>(C) ReelingIt</p>
     </footer>

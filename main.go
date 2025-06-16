@@ -46,21 +46,28 @@ func main() {
 	var addr string = ":8080"
 	server := http.NewServeMux()
 	movieRepo, _ := data.NewMovieRepository(db, appLogger)
+	accountRepo, _ := data.NewAccountRepository(db, appLogger)
 
 	movieHandler := handlers.NewMovieHandler(movieRepo, appLogger)
+	accountHandler := handlers.NewAccountHandler(accountRepo, appLogger)
 	server.HandleFunc("/api/movies/top", movieHandler.GetTopMovies)
 	server.HandleFunc("/api/movies/random", movieHandler.GetRandomMovies)
 	server.HandleFunc("/api/movies/search", movieHandler.SearchMovies)
 	server.HandleFunc("/api/movies", movieHandler.GetMovie)
 	server.HandleFunc("/api/genres", movieHandler.GetGenre)
+	server.HandleFunc("/api/account/register", accountHandler.Register)
+	server.HandleFunc("/api/account/authenticate", accountHandler.Authenticate)
+	server.Handle("/api/account/watchlist", accountHandler.AuthMiddleware(http.HandlerFunc(accountHandler.GetWatchlist)))
+	server.Handle("/api/account/favorites", accountHandler.AuthMiddleware(http.HandlerFunc(accountHandler.GetFavorites)))
 
+	server.Handle("/api/account/save-to-collection", accountHandler.AuthMiddleware(http.HandlerFunc(accountHandler.SaveToCollection)))
 	catchAllClientRoutesHandler := func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./public/index.html")
 	}
 	server.HandleFunc("/movies", catchAllClientRoutesHandler)
 
 	server.HandleFunc("/movies/", catchAllClientRoutesHandler)
-	server.HandleFunc("/account", catchAllClientRoutesHandler)
+	server.HandleFunc("/account/", catchAllClientRoutesHandler)
 
 	server.Handle("/", http.FileServer(http.Dir("./public")))
 
