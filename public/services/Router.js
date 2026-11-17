@@ -43,7 +43,6 @@ export const Router = {
       }
     }
     if (needsLogin && app.Store.loggedIn == false) {
-      console.log("i am here");
       app.Router.go("/account/login");
       return;
     }

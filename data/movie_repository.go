@@ -240,11 +240,13 @@ func (r *MovieRepository) fetchMovieRelations(m *models.Movie) error {
 		r.logger.Error("Failed to fetch movie actors for movie "+strconv.Itoa(m.ID), err)
 		return err
 	}
+	defer actorRows.Close()
 	for actorRows.Next() {
 		var a models.Actor
 		err := actorRows.Scan(&a.ID, &a.FirstName, &a.LastName, &a.ImageURL)
 		if err != nil {
 			r.logger.Error("Failed to scan movie actor row "+strconv.Itoa(m.ID), err)
+			return err
 		}
 		m.Casting = append(m.Casting, a)
 	}

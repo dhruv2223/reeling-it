@@ -1,11 +1,27 @@
+// The server issues JWTs that expire after 72h. An expired token must count
+// as logged out, otherwise protected pages silently get 401s.
+function isExpired(jwt) {
+  try {
+    const payload = JSON.parse(
+      atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
+    );
+    return typeof payload.exp === "number" && payload.exp * 1000 < Date.now();
+  } catch (e) {
+    return true; // malformed token
+  }
+}
+
 const Store = {
   jwt: null,
   get loggedIn() {
-    return this.jwt !== null;
+    return this.jwt !== null && !isExpired(this.jwt);
   },
 };
-if (localStorage.getItem("jwt")) {
-  Store.jwt = localStorage.getItem("jwt");
+const savedJwt = localStorage.getItem("jwt");
+if (savedJwt && !isExpired(savedJwt)) {
+  Store.jwt = savedJwt;
+} else {
+  localStorage.removeItem("jwt");
 }
 
 const proxiedStore = new Proxy(Store, {

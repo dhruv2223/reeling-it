@@ -9,6 +9,7 @@ import (
 	"github.com/dhruv2223/reeling-it/data"
 	"github.com/dhruv2223/reeling-it/handlers"
 	"github.com/dhruv2223/reeling-it/logger"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -42,6 +43,10 @@ func main() {
 
 	}
 	defer db.Close()
+	// sql.Open doesn't connect; fail fast here instead of on the first request.
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Error reaching the database: %v", err)
+	}
 
 	var addr string = ":8080"
 	server := http.NewServeMux()
@@ -61,6 +66,30 @@ func main() {
 	server.Handle("/api/account/favorites", accountHandler.AuthMiddleware(http.HandlerFunc(accountHandler.GetFavorites)))
 
 	server.Handle("/api/account/save-to-collection", accountHandler.AuthMiddleware(http.HandlerFunc(accountHandler.SaveToCollection)))
+
+	// WebAuthn Handlers
+	wconfig := &webauthn.Config{
+		RPDisplayName: "ReelingIt",
+		RPID:          "localhost",
+		RPOrigins:     []string{"http://localhost:8080"},
+	}
+
+	var webAuthnManager *webauthn.WebAuthn
+
+	if webAuthnManager, err = webauthn.New(wconfig); err != nil {
+		appLogger.Error("Error creating WebAuthn", err)
+		// Every passkey handler would dereference a nil manager.
+		log.Fatalf("Error initializing Passkey engine: %v", err)
+	}
+
+	passkeyRepo := data.NewPasskeyRepository(db, *appLogger)
+	webAuthnHandler := handlers.NewWebAuthnHandler(passkeyRepo, appLogger, webAuthnManager)
+	server.Handle("/api/passkey/registration-begin",
+		accountHandler.AuthMiddleware(http.HandlerFunc(webAuthnHandler.WebAuthnRegistrationBeginHandler)))
+	server.Handle("/api/passkey/registration-end",
+		accountHandler.AuthMiddleware(http.HandlerFunc(webAuthnHandler.WebAuthnRegistrationEndHandler)))
+	server.HandleFunc("/api/passkey/authentication-begin", webAuthnHandler.WebAuthnAuthenticationBeginHandler)
+	server.HandleFunc("/api/passkey/authentication-end", webAuthnHandler.WebAuthnAuthenticationEndHandler)
 	catchAllClientRoutesHandler := func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./public/index.html")
 	}

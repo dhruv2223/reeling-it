@@ -4,6 +4,7 @@ import { API } from "./services/API.js";
 import "./components/YoutubeEmbed.js";
 import "./components/AnimatedLoading.js";
 import { Router } from "./services/Router.js";
+import { Passkeys } from "./services/Passkey.js";
 import Store from "./services/Store.js";
 window.addEventListener("DOMContentLoaded", (event) => {
   app.Router.init();
@@ -25,21 +26,20 @@ window.app = {
   search: function (event) {
     event.preventDefault();
     const q = document.querySelector("input[type=search]").value;
-    console.log(q);
-    app.Router.go("/movies?q=" + q);
+    app.Router.go("/movies?" + new URLSearchParams({ q }));
   },
 
   searchOrderChange: (order) => {
     const urlParams = new URLSearchParams(window.location.search);
-    const q = urlParams.get("q");
+    const q = urlParams.get("q") ?? "";
     const genre = urlParams.get("genre") ?? "";
-    app.Router.go(`/movies?q=${q}&order=${order}&genre=${genre}`);
+    app.Router.go("/movies?" + new URLSearchParams({ q, order, genre }));
   },
   searchFilterChange: (genre) => {
     const urlParams = new URLSearchParams(window.location.search);
-    const q = urlParams.get("q");
+    const q = urlParams.get("q") ?? "";
     const order = urlParams.get("order") ?? "";
-    app.Router.go(`/movies?q=${q}&order=${order}&genre=${genre}`);
+    app.Router.go("/movies?" + new URLSearchParams({ q, order, genre }));
   },
   register: async (event) => {
     event.preventDefault();
@@ -124,5 +124,17 @@ window.app = {
   logout: () => {
     Store.jwt = null;
     app.Router.go("/");
+  },
+  addPasskey: async () => {
+    const username = "testuser";
+    await Passkeys.register(username);
+  },
+  loginWithPasskey: async () => {
+    const username = document.getElementById("login-email").value;
+    if (username.length < 4) {
+      app.showError("To use a passkey, enter your email address first");
+    } else {
+      await Passkeys.authenticate(username);
+    }
   },
 };

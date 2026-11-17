@@ -1,7 +1,7 @@
 .DS_Store 
-import/  
+import/*
+!import/database-dump.sql
 .env 
 **/app.log 
 
 tmp/
-README.md

@@ -7,6 +7,8 @@
     <link href="/styles.css" rel="stylesheet" />
     <link href="/app.webmanifest" rel="manifest" />
     <link rel="icon" href="/images/icon.png" /> 
+
+    <script src="https://unpkg.com/@simplewebauthn/browser@13.3.0/dist/bundle/index.umd.min.js" defer></script>
     <script src="/app.js" type="module" defer></script>  
     <base href="/" >
   </head>
@@ -76,7 +78,7 @@
                     <h2></h2>
                     <section id="filters">
                         <select id="filter" onchange="app.searchFilterChange(this.value)">
-                            <option>Filter by Genre</option>                        
+                            <option value="">Filter by Genre</option>
                         </select>
                         <select id="order" onchange="app.searchOrderChange(this.value)">
                             <option value="popularity">Sort by Popularity</option>
@@ -122,21 +124,27 @@
           <input id="login-email" type="email" required autocomplete="email"></input> 
 
           <label for="login-password">Password</label>  
-          <input id="login-password" type="password" required autocomplete="current-password"></input>   
+          <input id="login-password" type="password" autocomplete="current-password"></input>   
 
-          <button>Log In</button> 
+          <button>Log In</button>
+
+          <!-- NEW -->
+          <button type="button" onclick="app.loginWithPasskey()">Log In with a Passkey</button>
+
           <p>If you don't have an account please <a href="/account/register"> register</a></p>
         </form>
       </section>
     </template> 
-    <template id="template-account">
-      <section id="account">
-        <h2>You are Logged In</h2> 
-        <button onClick="app.logout()">Log out</button> 
-        <button onclick="app.Router.go('/account/favorites')">Your Favorites</button> 
-        <button onclick="app.Router.go('/account/watchlist')">Your Watchlist</button>
-      </section>
-    </template> 
+ <template id="template-account">
+        <section id="account">
+            <h2>You are Logged In</h2>
+            <button onclick="app.logout()">Log out</button>
+            <button onclick="app.Router.go('/account/favorites')">Your Favorites</button>
+            <button onclick="app.Router.go('/account/watchlist')">Your Watchlist</button>
+            <!-- NEW -->
+            <button onclick="app.addPasskey()">Add a Passkey for faster login</button>
+        </section>
+    </template>      
     <template id="template-collection"> 
       <section> 
         <h2></h2>

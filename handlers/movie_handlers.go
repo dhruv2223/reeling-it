@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -61,26 +62,29 @@ func (mh *MovieHandler) GetRandomMovies(w http.ResponseWriter, r *http.Request) 
 }
 
 func (mh *MovieHandler) GetMovie(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query()["id"]
-	if id != nil {
-		finalId, err := strconv.Atoi(id[0])
-		if err != nil {
-			mh.logger.Error(fmt.Sprintf("Failed to parse the id: %s", id), err)
-			http.Error(w, "Invalid Id", http.StatusBadRequest)
-		}
-		movie, err := mh.storage.GetMovieByID(finalId)
-		if err != nil {
-			mh.logger.Error(fmt.Sprintf("Failed to get movie for id: %v", finalId), err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
-		err = mh.writeJSONResponse(w, movie)
-
-		if err == nil {
-			mh.logger.Info("Succesfully responded with all genres")
-		}
-		//need to do proper error management here as i am returning internal server error even if
-		//the user is sending wrong id
-		// need to create a func that checks for the error and then returns appropriate error message
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "Missing Id", http.StatusBadRequest)
+		return
+	}
+	finalId, err := strconv.Atoi(id)
+	if err != nil {
+		mh.logger.Error(fmt.Sprintf("Failed to parse the id: %s", id), err)
+		http.Error(w, "Invalid Id", http.StatusBadRequest)
+		return
+	}
+	movie, err := mh.storage.GetMovieByID(finalId)
+	if errors.Is(err, data.ErrMovieNotFound) {
+		http.Error(w, "Movie not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		mh.logger.Error(fmt.Sprintf("Failed to get movie for id: %v", finalId), err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if err = mh.writeJSONResponse(w, movie); err == nil {
+		mh.logger.Info("Succesfully responded with movie")
 	}
 }
 func (mh *MovieHandler) GetGenre(w http.ResponseWriter, r *http.Request) {
@@ -88,6 +92,7 @@ func (mh *MovieHandler) GetGenre(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		mh.logger.Error("Failed to send all genres", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
 	}
 	err = mh.writeJSONResponse(w, genres)
 	if err == nil {

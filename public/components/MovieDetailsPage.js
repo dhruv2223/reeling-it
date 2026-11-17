@@ -4,11 +4,10 @@ export class MovieDetailsPage extends HTMLElement {
   id = null;
   movie = null;
   async render() {
-    try {
-      this.movie = await API.getMovieById(this.id);
-    } catch (e) {
-      console.error("Error fetching movie details:", e);
-      alert("Movie not found");
+    // API.fetch swallows errors and resolves to undefined on failure.
+    this.movie = await API.getMovieById(this.id);
+    if (!this.movie) {
+      app.showError("Movie not found", true);
       return;
     }
     const template = document.getElementById("template-movie-details");
@@ -20,11 +19,11 @@ export class MovieDetailsPage extends HTMLElement {
     this.querySelector("#trailer").dataset.url = this.movie.trailer_url;
     this.querySelector("#overview").textContent = this.movie.overview;
     this.querySelector("#metadata").innerHTML = `
-                <dt>Release Year<dt/> 
-                <dd>${this.movie.release_year}</dd> 
-                <dt>Score<dt/> 
-                <dd>${this.movie.score} / 10</dd>   
-                <dt>Popularity<dt/> 
+                <dt>Release Year</dt>
+                <dd>${this.movie.release_year}</dd>
+                <dt>Score</dt>
+                <dd>${this.movie.score} / 10</dd>
+                <dt>Popularity</dt>
                 <dd>${this.movie.popularity}</dd>  
 
 
@@ -40,7 +39,6 @@ export class MovieDetailsPage extends HTMLElement {
     this.querySelector("#actions #btnfavorite").addEventListener(
       "click",
       () => {
-        console.log("hello dhruv");
         app.saveToCollection(this.movie.id, "favorite");
       },
     );
@@ -48,7 +46,6 @@ export class MovieDetailsPage extends HTMLElement {
     this.querySelector("#actions #btnwatchlist").addEventListener(
       "click",
       () => {
-        console.log("hello dhruv");
         app.saveToCollection(this.movie.id, "watchlist");
       },
     );
