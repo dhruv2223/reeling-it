@@ -54,30 +54,31 @@ The backend is plain **Go** (standard-library `net/http`) on top of **PostgreSQL
 One Go binary does two jobs: it **serves the static SPA** from `public/`, and it **exposes a JSON REST API** under `/api`. Inside the server, each request moves through three layers: **handlers** (HTTP), **repositories** (SQL), then **models** (plain structs). Handlers only depend on repository *interfaces* (`data/interfaces.go`), so the storage layer can be swapped out.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "15px", "lineColor": "#64748b", "edgeLabelBackground": "#ffffff", "primaryTextColor": "#0f172a"}, "flowchart": {"curve": "basis", "nodeSpacing": 35, "rankSpacing": 55}}}%%
 flowchart LR
-    subgraph Browser["Browser (SPA)"]
+    User(["👤 User"])
+
+    subgraph Browser["🖥️ Browser · Single Page App"]
         direction TB
-        HTML["index.html<br/>+ HTML templates + styles.css"]
-        App["app.js<br/>(global app controller)"]
-        Router["Router + Routes"]
-        Pages["Web Components<br/>HomePage · MoviesPage · MovieDetailsPage<br/>Login/Register · Account · Collections"]
-        Services["Services<br/>API.js · Passkey.js · Store.js"]
-        LS[("localStorage<br/>JWT")]
-        HTML --> App
-        App --> Router --> Pages
-        Pages --> Services
+        HTML["📄 index.html<br/>HTML templates · styles.css"]
+        App["⚙️ app.js<br/>global app controller"]
+        Router["🧭 Router + Routes<br/>History API · View Transitions"]
+        Pages["🧩 Web Components<br/>Home · Movies · Movie details<br/>Login · Register · Account · Collections"]
+        Services["🔌 Services<br/>API.js · Passkey.js · Store.js"]
+        LS[("💾 localStorage<br/>JWT")]
+        HTML --> App --> Router --> Pages --> Services
         Services <--> LS
     end
 
-    subgraph Server["Go server :8080"]
+    subgraph Server["🚀 Go server · :8080"]
         direction TB
-        Mux["http.ServeMux"]
-        Static["Static file server<br/>+ SPA fallback"]
-        MW["AuthMiddleware<br/>(JWT check)"]
-        H["Handlers<br/>Movie · Account · WebAuthn"]
-        R["Repositories<br/>Movie · Account · Passkey"]
-        M["Models<br/>Movie · Genre · Actor · User · PasskeyUser"]
-        Log["Logger<br/>info → stdout · errors → app.log"]
+        Mux{{"🚦 http.ServeMux"}}
+        Static["📁 Static files<br/>public/ + SPA fallback"]
+        MW["🛡️ AuthMiddleware<br/>JWT check"]
+        H["🎛️ Handlers<br/>Movie · Account · WebAuthn"]
+        R["🗄️ Repositories<br/>Movie · Account · Passkey"]
+        M["📦 Models<br/>Movie · Genre · Actor · User · PasskeyUser"]
+        Log["📝 Logger<br/>stdout · app.log"]
         Mux --> Static
         Mux --> H
         Mux --> MW --> H
@@ -86,14 +87,46 @@ flowchart LR
         R -.-> Log
     end
 
-    DB[("PostgreSQL")]
-    Ext["External media<br/>TMDB images · YouTube trailers"]
+    DB[("🐘 PostgreSQL<br/>movies · users · passkeys")]
+    Ext["🎬 External media<br/>TMDB posters · YouTube trailers"]
 
-    Services -->|"JSON over HTTP /api/*"| Mux
-    Browser -->|"GET /, /movies/…, /account/…"| Static
-    R -->|"SQL over TCP"| DB
-    Pages -.->|"img / iframe"| Ext
+    User -->|"opens the app"| HTML
+    Static -.->|"serves HTML, JS, CSS"| HTML
+    Services ==>|"JSON · /api/*"| Mux
+    R ==>|"SQL over TCP"| DB
+    Pages -.->|"img · iframe"| Ext
+
+    classDef user fill:#1e293b,stroke:#0f172a,stroke-width:2px,color:#ffffff
+    classDef ui fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#831843
+    classDef js fill:#ecfccb,stroke:#65a30d,stroke-width:2px,color:#365314
+    classDef store fill:#fef9c3,stroke:#ca8a04,stroke-width:2px,color:#713f12
+    classDef gate fill:#ffedd5,stroke:#ea580c,stroke-width:2px,color:#7c2d12
+    classDef go fill:#ccfbf1,stroke:#0d9488,stroke-width:2px,color:#134e4a
+    classDef log fill:#f1f5f9,stroke:#94a3b8,stroke-width:1px,stroke-dasharray:4 3,color:#334155
+    classDef db fill:#ede9fe,stroke:#7c3aed,stroke-width:3px,color:#4c1d95
+    classDef ext fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d
+
+    class User user
+    class HTML,Pages ui
+    class App,Router,Services js
+    class LS store
+    class Mux,MW gate
+    class Static,H,R,M go
+    class Log log
+    class DB db
+    class Ext ext
+
+    style Browser fill:#f7fee7,stroke:#84cc16,stroke-width:2px,color:#3f6212
+    style Server fill:#f0fdfa,stroke:#14b8a6,stroke-width:2px,color:#115e59
+
+    linkStyle default stroke:#64748b,stroke-width:2px
+    linkStyle 14 stroke:#0d9488,stroke-width:2px
+    linkStyle 15 stroke:#ea580c,stroke-width:3px
+    linkStyle 16 stroke:#7c3aed,stroke-width:3px
+    linkStyle 17 stroke:#dc2626,stroke-width:2px
 ```
+
+**Colour key:** 🩷 markup and pages · 🟢 client-side JavaScript · 🟡 browser storage · 🟠 routing and the auth gate · 🩵 Go server layers · 🟣 database · 🔴 external media. Thick arrows are the two main data paths: the JSON API and SQL.
 
 **Frontend.**
 - `index.html` contains every page as an HTML `<template>`. Each page is a Web Component (a custom element) that clones its template and fills it with data from `API.js`.
@@ -109,27 +142,46 @@ flowchart LR
 What happens when a user opens a movie page directly, for example by pasting `/movies/234` into the address bar:
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "actorBkg": "#ffffff", "actorBorder": "#334155", "actorTextColor": "#0f172a", "actorLineColor": "#94a3b8", "signalColor": "#334155", "signalTextColor": "#0f172a", "noteBkgColor": "#fef9c3", "noteBorderColor": "#ca8a04", "noteTextColor": "#713f12", "activationBkgColor": "#99f6e4", "activationBorderColor": "#0d9488", "sequenceNumberColor": "#ffffff"}}}%%
 sequenceDiagram
     autonumber
-    actor U as User
-    participant B as Browser (SPA)
-    participant S as Go server
-    participant H as MovieHandler
-    participant R as MovieRepository
-    participant DB as PostgreSQL
+    box rgb(252, 231, 243) 🖥️ Client
+        actor U as 👤 User
+        participant B as Browser (SPA)
+    end
+    box rgb(204, 251, 241) 🚀 Go server
+        participant S as ServeMux
+        participant H as MovieHandler
+        participant R as MovieRepository
+    end
+    box rgb(237, 233, 254) 🐘 Database
+        participant DB as PostgreSQL
+    end
 
-    U->>B: open /movies/234
-    B->>S: GET /movies/234
-    S-->>B: index.html (SPA fallback)
-    B->>B: Router matches /movies/:id → MovieDetailsPage component
-    B->>S: GET /api/movies?id=234
-    S->>H: GetMovie
-    H->>R: GetMovieByID(234)
-    R->>DB: SELECT movie, then its genres, keywords, cast
-    DB-->>R: rows
-    R-->>H: models.Movie
-    H-->>B: 200 JSON (404 if unknown, 400 if id is invalid)
-    B->>B: fill the template → poster, trailer, metadata, cast
+    rect rgb(255, 237, 213)
+        Note over U,S: ① Load the app shell
+        U->>B: open /movies/234
+        B->>S: GET /movies/234
+        S-->>B: index.html (SPA fallback)
+        B->>B: Router matches /movies/:id → MovieDetailsPage
+    end
+
+    rect rgb(240, 253, 250)
+        Note over B,DB: ② Fetch the data
+        B->>S: GET /api/movies?id=234
+        S->>+H: GetMovie
+        H->>+R: GetMovieByID(234)
+        R->>+DB: SELECT movie, genres, keywords, cast
+        DB-->>-R: rows
+        R-->>-H: models.Movie
+        H-->>-B: 200 JSON (404 unknown · 400 bad id)
+    end
+
+    rect rgb(253, 242, 248)
+        Note over U,B: ③ Render
+        B->>B: fill the template: poster, trailer, metadata, cast
+        B-->>U: 🎬 movie page
+    end
 ```
 
 Later navigation inside the app makes no new page requests. The router swaps components and only calls the API.
@@ -146,37 +198,45 @@ Later navigation inside the app makes no new page requests. The router swaps com
 - Credentials are stored as JSON in the `passkeys` table. A successful passkey login returns the same kind of JWT as a password login.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "actorBkg": "#ffffff", "actorBorder": "#334155", "actorTextColor": "#0f172a", "actorLineColor": "#94a3b8", "signalColor": "#334155", "signalTextColor": "#0f172a", "noteBkgColor": "#fef9c3", "noteBorderColor": "#ca8a04", "noteTextColor": "#713f12", "sequenceNumberColor": "#ffffff"}}}%%
 sequenceDiagram
     autonumber
-    participant B as Browser
-    participant A as Authenticator<br/>(Touch ID, phone, key…)
-    participant S as Go server
-    participant DB as PostgreSQL
-
-    rect rgba(127,127,127,0.08)
-    note over B,DB: Add a passkey (user is logged in, sends the JWT)
-    B->>S: POST /api/passkey/registration-begin
-    S->>DB: load user + existing credentials
-    S-->>B: creation options + Set-Cookie sid
-    B->>A: startRegistration()
-    A-->>B: new key pair, attestation
-    B->>S: POST /api/passkey/registration-end (cookie sid)
-    S->>S: verify against the stored session
-    S->>DB: INSERT credential into passkeys
-    S-->>B: { success: true }
+    box rgb(252, 231, 243) 🖥️ Client
+        participant B as Browser
+        participant A as 🔑 Authenticator<br/>Touch ID · phone · security key
+    end
+    box rgb(204, 251, 241) 🚀 Go server
+        participant S as WebAuthn handlers
+    end
+    box rgb(237, 233, 254) 🐘 Database
+        participant DB as PostgreSQL
     end
 
-    rect rgba(127,127,127,0.08)
-    note over B,DB: Log in with a passkey
-    B->>S: POST /api/passkey/authentication-begin { email }
-    S->>DB: load user + credentials
-    S-->>B: request options + Set-Cookie sid
-    B->>A: startAuthentication()
-    A-->>B: signed challenge (assertion)
-    B->>S: POST /api/passkey/authentication-end (cookie sid)
-    S->>S: verify signature + sign counter
-    S->>DB: UPDATE stored credential (new sign counter)
-    S-->>B: { success: true, jwt }
+    rect rgb(224, 242, 254)
+        Note over B,DB: ➕ Add a passkey (logged in, request carries the JWT)
+        B->>S: POST /api/passkey/registration-begin
+        S->>DB: load user + existing credentials
+        S-->>B: creation options + Set-Cookie sid
+        B->>A: startRegistration()
+        Note right of A: new key pair created,<br/>private key never leaves the device
+        A-->>B: public key + attestation
+        B->>S: POST /api/passkey/registration-end (cookie sid)
+        S->>S: verify against the stored session
+        S->>DB: INSERT credential into passkeys
+        S-->>B: { success: true }
+    end
+
+    rect rgb(220, 252, 231)
+        Note over B,DB: 🔓 Log in with a passkey
+        B->>S: POST /api/passkey/authentication-begin { email }
+        S->>DB: load user + credentials
+        S-->>B: request options + Set-Cookie sid
+        B->>A: startAuthentication()
+        A-->>B: signed challenge (assertion)
+        B->>S: POST /api/passkey/authentication-end (cookie sid)
+        S->>S: verify signature + sign counter
+        S->>DB: UPDATE credential (new sign counter)
+        S-->>B: { success: true, jwt }
     end
 ```
 
@@ -185,6 +245,7 @@ sequenceDiagram
 Movies are linked to genres, keywords and actors through join tables. Users save movies through `user_movies`, where `relation_type` is either `favorite` or `watchlist`. Passkey credentials belong to a user.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "primaryColor": "#ede9fe", "primaryBorderColor": "#7c3aed", "primaryTextColor": "#3b0764", "mainBkg": "#ede9fe", "nodeBorder": "#7c3aed", "attributeBackgroundColorOdd": "#ffffff", "attributeBackgroundColorEven": "#f5f3ff", "lineColor": "#7c3aed", "tertiaryColor": "#ffffff", "edgeLabelBackground": "#ffffff", "textColor": "#3b0764"}}}%%
 erDiagram
     users ||--o{ user_movies : saves
     movies ||--o{ user_movies : "saved in"
