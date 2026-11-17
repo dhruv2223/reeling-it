@@ -1,4 +1,5 @@
 import { MovieItemComponent } from "./MovieItem.js";
+
 export class CollectionPage extends HTMLElement {
   constructor(endpoint, title) {
     super();
@@ -7,9 +8,7 @@ export class CollectionPage extends HTMLElement {
   }
 
   async render() {
-    this.querySelector("h2").innerText = this.title;
     const movies = await this.endpoint();
-
     const ulMovies = this.querySelector("ul");
     ulMovies.innerHTML = "";
     if (movies && movies.length > 0) {
@@ -22,6 +21,7 @@ export class CollectionPage extends HTMLElement {
       ulMovies.innerHTML = "<h3>There are no movies</h3>";
     }
   }
+
   connectedCallback() {
     const template = document.getElementById("template-collection");
     const content = template.content.cloneNode(true);

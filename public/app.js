@@ -4,6 +4,7 @@ import { API } from "./services/API.js";
 import "./components/YoutubeEmbed.js";
 import "./components/AnimatedLoading.js";
 import { Router } from "./services/Router.js";
+import { Passkeys } from "./services/Passkey.js";
 import Store from "./services/Store.js";
 window.addEventListener("DOMContentLoaded", (event) => {
   app.Router.init();
@@ -124,5 +125,17 @@ window.app = {
   logout: () => {
     Store.jwt = null;
     app.Router.go("/");
+  },
+  addPasskey: async () => {
+    const username = "testuser";
+    await Passkeys.register(username);
+  },
+  loginWithPasskey: async () => {
+    const username = document.getElementById("login-email").value;
+    if (username.length < 4) {
+      app.showError("To use a passkey, enter your email address first");
+    } else {
+      await Passkeys.authenticate(username);
+    }
   },
 };
