@@ -43,6 +43,10 @@ func main() {
 
 	}
 	defer db.Close()
+	// sql.Open doesn't connect; fail fast here instead of on the first request.
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Error reaching the database: %v", err)
+	}
 
 	var addr string = ":8080"
 	server := http.NewServeMux()
@@ -74,10 +78,8 @@ func main() {
 
 	if webAuthnManager, err = webauthn.New(wconfig); err != nil {
 		appLogger.Error("Error creating WebAuthn", err)
-	}
-
-	if err != nil {
-		appLogger.Error("Error initialing Passkey engine", err)
+		// Every passkey handler would dereference a nil manager.
+		log.Fatalf("Error initializing Passkey engine: %v", err)
 	}
 
 	passkeyRepo := data.NewPasskeyRepository(db, *appLogger)

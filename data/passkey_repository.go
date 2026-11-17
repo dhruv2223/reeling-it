@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/dhruv2223/reeling-it/logger"
 	"github.com/dhruv2223/reeling-it/models"
@@ -16,6 +18,7 @@ import (
 // PasskeyRepository manages WebAuthn passkey data using a database.
 type PasskeyRepository struct {
 	db       *sql.DB                         // Database connection
+	mu       sync.Mutex                      // Guards sessions; handlers run concurrently
 	sessions map[string]webauthn.SessionData // In-memory session storage
 	log      logger.Logger                   // Logger for debugging and errors
 }
@@ -41,20 +44,33 @@ func (r *PasskeyRepository) GenSessionID() (string, error) {
 
 // GetSession retrieves session data from the in-memory map.
 func (r *PasskeyRepository) GetSession(token string) (webauthn.SessionData, bool) {
-	r.log.Info(fmt.Sprintf("GetSession: %v", r.sessions[token]))
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	val, ok := r.sessions[token]
+	r.log.Info(fmt.Sprintf("GetSession: found=%v", ok))
 	return val, ok
 }
 
-// SaveSession stores session data in the in-memory map.
+// SaveSession stores session data in the in-memory map, dropping expired
+// sessions so abandoned registration/login attempts don't accumulate.
 func (r *PasskeyRepository) SaveSession(token string, data webauthn.SessionData) {
-	r.log.Info(fmt.Sprintf("SaveSession: %s - %v", token, data))
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	for t, s := range r.sessions {
+		if !s.Expires.IsZero() && s.Expires.Before(now) {
+			delete(r.sessions, t)
+		}
+	}
+	r.log.Info("SaveSession")
 	r.sessions[token] = data
 }
 
 // DeleteSession removes session data from the in-memory map.
 func (r *PasskeyRepository) DeleteSession(token string) {
-	r.log.Info(fmt.Sprintf("DeleteSession: %v", token))
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.log.Info("DeleteSession")
 	delete(r.sessions, token)
 }
 
@@ -175,29 +191,43 @@ func (r *PasskeyRepository) SaveUser(user models.PasskeyUser) {
 		return
 	}
 
-	// Insert new credentials
+	// Map each stored credential ID to its row, so a credential whose data
+	// changed (e.g. its sign counter after a login) is updated in place
+	// instead of being inserted again as a duplicate row.
+	rows, err := r.db.Query("SELECT id, keys FROM passkeys WHERE user_id = $1", userID)
+	if err != nil {
+		r.log.Error("Failed to query existing passkeys", err)
+		return
+	}
+	existing := make(map[string]int)
+	for rows.Next() {
+		var rowID int
+		var keys string
+		if err := rows.Scan(&rowID, &keys); err != nil {
+			r.log.Error("Failed to scan passkey row", err)
+			continue
+		}
+		if cred, err := deserializeCredential(keys); err == nil {
+			existing[string(cred.ID)] = rowID
+		}
+	}
+	rows.Close()
+
 	for _, cred := range user.Credentials {
 		keys, err := serializeCredential(cred)
 		if err != nil {
 			r.log.Error("Failed to serialize credential", err)
 			continue
 		}
-		// Check if the key already exists in the database
-		var exists bool
-		err = r.db.QueryRow("SELECT EXISTS(SELECT 1 FROM passkeys WHERE user_id = $1 AND keys = $2)", userID, keys).Scan(&exists)
-		if err != nil {
-			r.log.Error("Failed to check if passkey exists", err)
-			continue
-		}
 
-		// Insert the key only if it does not already exist
-		if !exists {
-			_, err = r.db.Exec("INSERT INTO passkeys (user_id, keys) VALUES ($1, $2)", userID, keys)
-			if err != nil {
-				r.log.Error("Failed to insert passkey", err)
+		if rowID, ok := existing[string(cred.ID)]; ok {
+			if _, err = r.db.Exec("UPDATE passkeys SET keys = $1 WHERE id = $2", keys, rowID); err != nil {
+				r.log.Error("Failed to update passkey", err)
 			}
 		} else {
-			r.log.Info(fmt.Sprintf("Passkey already exists for user_id: %d", userID))
+			if _, err = r.db.Exec("INSERT INTO passkeys (user_id, keys) VALUES ($1, $2)", userID, keys); err != nil {
+				r.log.Error("Failed to insert passkey", err)
+			}
 		}
 	}
 }

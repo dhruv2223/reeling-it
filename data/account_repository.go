@@ -3,6 +3,7 @@ package data
 import (
 	"database/sql"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/dhruv2223/reeling-it/logger"
@@ -264,7 +265,7 @@ func (r *AccountRepository) SaveCollection(user models.User, movieID int, collec
 		return false, err
 	}
 
-	r.logger.Info("Successfully added movie " + string(movieID) + " to " + collection + " for user")
+	r.logger.Info("Successfully added movie " + strconv.Itoa(movieID) + " to " + collection + " for user")
 	return true, nil
 }
 

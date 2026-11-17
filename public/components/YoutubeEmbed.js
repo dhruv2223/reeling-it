@@ -5,6 +5,11 @@ export class YoutubeEmbed extends HTMLElement {
   attributeChangedCallback(prop, value) {
     if (prop == "data-url") {
       const url = this.dataset.url;
+      // Movies without a trailer have no URL (or the string "null").
+      if (!url || url === "null" || !url.includes("?v")) {
+        this.innerHTML = "";
+        return;
+      }
       const videoId = url.substring(url.indexOf("?v") + 3);
       this.innerHTML = ` <iframe width="90%" height="315" src="https://www.youtube.com/embed/${videoId}" title="YouTube video player" 
 frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; 

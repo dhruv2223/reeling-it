@@ -58,9 +58,10 @@ func (h *AccountHandler) handleStorageError(w http.ResponseWriter, err error, co
 	if err != nil {
 		switch err {
 		case data.ErrAuthenticationValidation, data.ErrUserAlreadyExists, data.ErrRegistrationValidation:
+			// The status must be written before the body, or it is silently sent as 200.
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(AuthResponse{Success: false, Message: err.Error()})
 			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(AuthResponse{Success: false, Message: err.Error()})
 			return true
 		case data.ErrUserNotFound:
 			http.Error(w, "User not found", http.StatusNotFound)

@@ -11,6 +11,7 @@ export class HomePage extends HTMLElement {
 
     function renderMoviesInList(movies, ul) {
       ul.innerHTML = "";
+      if (!movies) return; // request failed
       movies.forEach((movie) => {
         const li = document.createElement("li");
         li.appendChild(new MovieItemComponent(movie));

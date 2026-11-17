@@ -16,7 +16,7 @@ export const API = {
   },
   searchMovies: async function (query, order, genre) {
     return await API.fetch(
-      `movies/search?query=${query}&order=${order}&genre=${genre}`,
+      `movies/search?query=${encodeURIComponent(query)}&order=${encodeURIComponent(order)}&genre=${encodeURIComponent(genre)}`,
     );
   },
   register: async function (name, email, password) {

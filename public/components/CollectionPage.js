@@ -26,6 +26,7 @@ export class CollectionPage extends HTMLElement {
     const template = document.getElementById("template-collection");
     const content = template.content.cloneNode(true);
     this.appendChild(content);
+    this.querySelector("h2").textContent = this.title;
 
     this.render();
   }

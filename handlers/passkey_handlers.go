@@ -1,17 +1,23 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/dhruv2223/reeling-it/data"
 	"github.com/dhruv2223/reeling-it/logger"
 	"github.com/dhruv2223/reeling-it/models"
 	"github.com/dhruv2223/reeling-it/token"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
+
+// The WebAuthn session cookie is only needed by the /api/passkey/* endpoints.
+const passkeyCookieName = "sid"
+const passkeyCookiePath = "/api/passkey"
 
 type WebAuthnHandler struct {
 	storage  data.PasskeyStore
@@ -37,6 +43,46 @@ func (h *WebAuthnHandler) writeJSONResponse(w http.ResponseWriter, data interfac
 	return nil
 }
 
+func setSessionCookie(w http.ResponseWriter, value string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     passkeyCookieName,
+		Value:    value,
+		Path:     passkeyCookiePath,
+		MaxAge:   3600,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// clearSessionCookie deletes the cookie; Path must match the one it was set with.
+func clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     passkeyCookieName,
+		Value:    "",
+		Path:     passkeyCookiePath,
+		MaxAge:   -1,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// loadSession returns the WebAuthn session referenced by the request's cookie.
+func (h *WebAuthnHandler) loadSession(r *http.Request) (string, webauthn.SessionData, bool) {
+	sid, err := r.Cookie(passkeyCookieName)
+	if err != nil {
+		h.logger.Error("Couldn't get the cookie for the session", err)
+		return "", webauthn.SessionData{}, false
+	}
+	session, ok := h.storage.GetSession(sid.Value)
+	if !ok {
+		h.logger.Error("Session not found or expired", nil)
+		return "", webauthn.SessionData{}, false
+	}
+	return sid.Value, session, true
+}
+
 func (h *WebAuthnHandler) WebAuthnRegistrationBeginHandler(w http.ResponseWriter, r *http.Request) {
 	email, ok := r.Context().Value("email").(string)
 	if !ok {
@@ -47,35 +93,33 @@ func (h *WebAuthnHandler) WebAuthnRegistrationBeginHandler(w http.ResponseWriter
 	user, err := h.storage.GetUserByEmail(email)
 	if err != nil {
 		h.logger.Error("Failed to find user", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
 
-	options, session, err := h.webauthn.BeginRegistration(user)
-	if err != nil {
-		h.logger.Error("Unable to retrieve email", err)
-		http.Error(w, "Can't begin WebAuthn Registration", http.StatusInternalServerError)
+	// Stop the browser from registering a second passkey on an authenticator
+	// that already holds one for this account.
+	exclusions := make([]protocol.CredentialDescriptor, 0, len(user.Credentials))
+	for _, cred := range user.Credentials {
+		exclusions = append(exclusions, cred.Descriptor())
+	}
 
+	options, session, err := h.webauthn.BeginRegistration(user, webauthn.WithExclusions(exclusions))
+	if err != nil {
+		h.logger.Error("Can't begin WebAuthn registration", err)
+		http.Error(w, "Can't begin WebAuthn Registration", http.StatusInternalServerError)
 		return
 	}
 
 	// Make a session key and store the sessionData values
 	t, err := h.storage.GenSessionID()
 	if err != nil {
-		h.logger.Error("Can't generate session id: %s", err)
+		h.logger.Error("Can't generate session id", err)
+		http.Error(w, "Can't begin WebAuthn Registration", http.StatusInternalServerError)
+		return
 	}
-
 	h.storage.SaveSession(t, *session)
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "sid",
-		Value:    t,
-		Path:     "api/passkey/registerStart",
-		MaxAge:   3600,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	setSessionCookie(w, t)
 
 	h.writeJSONResponse(w, options)
 }
@@ -88,30 +132,25 @@ func (h *WebAuthnHandler) WebAuthnRegistrationEndHandler(w http.ResponseWriter, 
 		return
 	}
 
-	// Get the session key from cookie
-	sid, err := r.Cookie("sid")
-	if err != nil {
-		h.logger.Error("Couldn't get the cookie for the session", err)
+	sid, session, ok := h.loadSession(r)
+	if !ok {
+		http.Error(w, "Registration session expired, please try again", http.StatusBadRequest)
+		return
 	}
-
-	// Get the session data
-	session, _ := h.storage.GetSession(sid.Value)
+	// A session is single-use, whatever the outcome.
+	h.storage.DeleteSession(sid)
+	clearSessionCookie(w)
 
 	user, err := h.storage.GetUserByEmail(email)
 	if err != nil {
 		h.logger.Error("Failed to find user", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
 
 	credential, err := h.webauthn.FinishRegistration(user, session, r)
 	if err != nil {
-		h.logger.Error("Coudln't finish the WebAuthn Registration", err)
-		// clean up sid cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:  "sid",
-			Value: "",
-		})
+		h.logger.Error("Couldn't finish the WebAuthn registration", err)
 		http.Error(w, "Couldn't finish registration", http.StatusBadRequest)
 		return
 	}
@@ -119,80 +158,65 @@ func (h *WebAuthnHandler) WebAuthnRegistrationEndHandler(w http.ResponseWriter, 
 	// Store the credential object
 	user.AddCredential(credential)
 	h.storage.SaveUser(*user)
-	// Delete the session data
-	h.storage.DeleteSession(sid.Value)
-	http.SetCookie(w, &http.Cookie{
-		Name:  "sid",
-		Value: "",
-	})
 
-	h.writeJSONResponse(w, "{'success': true}")
-
+	h.writeJSONResponse(w, map[string]bool{"success": true})
 }
 
 func (h *WebAuthnHandler) WebAuthnAuthenticationBeginHandler(w http.ResponseWriter, r *http.Request) {
-	type CollectionRequest struct {
+	type AuthenticationRequest struct {
 		Email string `json:"email"`
 	}
-	var req CollectionRequest
+	var req AuthenticationRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.logger.Error("Failed to decode collection request", err)
+		h.logger.Error("Failed to decode authentication request", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	email := req.Email
-
 	h.logger.Info("Finding user " + email)
 
 	user, err := h.storage.GetUserByEmail(email) // Find the user
-
+	if errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "No account found for that email", http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		h.logger.Error("Failed to find user", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	options, session, err := h.webauthn.BeginLogin(user)
 	if err != nil {
-		h.logger.Error("Coudln't start a login", err)
-		http.Error(w, "User not found", http.StatusNotFound)
+		h.logger.Error("Couldn't start a login", err)
+		http.Error(w, "No passkey is registered for this account", http.StatusNotFound)
 		return
 	}
 
 	// Make a session key and store the sessionData values
 	t, err := h.storage.GenSessionID()
 	if err != nil {
-		h.logger.Error("Coudln't create a session ID", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		h.logger.Error("Couldn't create a session ID", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 	h.storage.SaveSession(t, *session)
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "sid",
-		Value:    t,
-		Path:     "api/passkey/loginStart",
-		MaxAge:   3600,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, // TODO: SameSiteStrictMode maybe?
-	})
+	setSessionCookie(w, t)
 
 	h.writeJSONResponse(w, options)
 }
 
 func (h *WebAuthnHandler) WebAuthnAuthenticationEndHandler(w http.ResponseWriter, r *http.Request) {
-	// Get the session key from cookie
-	sid, err := r.Cookie("sid")
-	if err != nil {
-		h.logger.Error("Coudln't get a session", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+	sid, session, ok := h.loadSession(r)
+	if !ok {
+		http.Error(w, "Login session expired, please try again", http.StatusBadRequest)
 		return
 	}
-	// Get the session data stored from the function above
-	session, _ := h.storage.GetSession(sid.Value)
+	// A session is single-use, whatever the outcome.
+	h.storage.DeleteSession(sid)
+	clearSessionCookie(w)
 
 	userID, err := strconv.Atoi(string(session.UserID)) // Convert []byte to int
 	if err != nil {
@@ -203,61 +227,33 @@ func (h *WebAuthnHandler) WebAuthnAuthenticationEndHandler(w http.ResponseWriter
 	user, err := h.storage.GetUserByID(userID) // Get the user
 	if err != nil {
 		h.logger.Error("Failed to find user", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
 
 	credential, err := h.webauthn.FinishLogin(user, session, r)
 	if err != nil {
-		h.logger.Error("Coudln't finish login", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	// Handle credential.Authenticator.CloneWarning
-	if credential.Authenticator.CloneWarning {
 		h.logger.Error("Couldn't finish login", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Passkey verification failed", http.StatusUnauthorized)
 		return
 	}
 
-	// If login was successful
+	// A sign counter that went backwards suggests a cloned authenticator.
+	if credential.Authenticator.CloneWarning {
+		h.logger.Error("Passkey clone warning for user "+user.Name, nil)
+		http.Error(w, "Passkey verification failed", http.StatusUnauthorized)
+		return
+	}
+
+	// If login was successful, persist the updated sign counter
 	user.UpdateCredential(credential)
 	h.storage.SaveUser(*user)
-
-	// Delete the session data
-	h.storage.DeleteSession(sid.Value)
-	http.SetCookie(w, &http.Cookie{
-		Name:  "sid",
-		Value: "",
-	})
-
-	// Add the new session cookie
-	t, err := h.storage.GenSessionID()
-	if err != nil {
-		h.logger.Error("Couldn't generate session", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
-	}
-
-	h.storage.SaveSession(t, webauthn.SessionData{
-		Expires: time.Now().Add(time.Hour),
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     "sid",
-		Value:    t,
-		Path:     "/",
-		MaxAge:   3600,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode, // TODO: SameSiteStrictMode maybe?
-	})
 
 	type PasskeyResponse struct {
 		Success bool        `json:"success"`
 		JWT     token.Token `json:"jwt"`
 	}
 	h.logger.Info("Sending JWT for " + user.Name)
-	// Return success response
 	response := PasskeyResponse{
 		Success: true,
 		JWT:     token.CreateJWT(models.User{Email: user.Name}, *h.logger),

@@ -15,7 +15,7 @@ export class MoviesPage extends HTMLElement {
         ulMovies.appendChild(li);
       });
     } else {
-      ulMovies.innerHTML = `<h3>There are now movies with your search</h3>`;
+      ulMovies.innerHTML = `<h3>There are no movies with your search</h3>`;
     }
     if (order) {
       this.querySelector("select#order").value = order;
@@ -27,7 +27,8 @@ export class MoviesPage extends HTMLElement {
   async loadGenres() {
     const genres = await API.getGenres();
     const select = this.querySelector("select#filter");
-    select.innerHTML = `<option>Filter by Genre</option>`;
+    // Empty value = no filter; otherwise the label text is sent as the genre ID.
+    select.innerHTML = `<option value="">Filter by Genre</option>`;
     genres.forEach((genre) => {
       const option = document.createElement("option");
       option.value = genre.id;

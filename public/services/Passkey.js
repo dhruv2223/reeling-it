@@ -10,9 +10,11 @@ export const Passkeys = {
         body: JSON.stringify({ username: username }),
       });
 
+      // Server errors are plain text (http.Error), not JSON.
       if (!response.ok) {
-        const err = await response.json();
-        app.showError("Failed to get registration options from server." + err);
+        const err = await response.text();
+        app.showError("Failed to get registration options from server. " + err);
+        return;
       }
 
       const options = await response.json();
@@ -34,13 +36,12 @@ export const Passkeys = {
         },
       );
 
-      const msg = await verificationResponse.json();
       if (verificationResponse.ok) {
         app.showError(
           "Your passkey was saved. You can use it next time to login",
         );
       } else {
-        app.showError(msg, false);
+        app.showError(await verificationResponse.text(), false);
       }
     } catch (e) {
       app.showError("Error: " + e.message, false);
@@ -53,6 +54,10 @@ export const Passkeys = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      if (!response.ok) {
+        app.showError(await response.text(), false);
+        return;
+      }
       const options = await response.json();
 
       const assertionResponse = await SimpleWebAuthnBrowser.startAuthentication(
@@ -71,12 +76,16 @@ export const Passkeys = {
         },
       );
 
+      if (!verificationResponse.ok) {
+        app.showError(await verificationResponse.text(), false);
+        return;
+      }
       const serverResponse = await verificationResponse.json();
       if (serverResponse.success) {
         app.Store.jwt = serverResponse.jwt;
         app.Router.go("/account/");
       } else {
-        app.showError(msg, false);
+        app.showError("We couldn't authenticate you using a Passkey", false);
       }
     } catch (e) {
       console.log(e);

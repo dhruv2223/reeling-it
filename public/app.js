@@ -26,21 +26,20 @@ window.app = {
   search: function (event) {
     event.preventDefault();
     const q = document.querySelector("input[type=search]").value;
-    console.log(q);
-    app.Router.go("/movies?q=" + q);
+    app.Router.go("/movies?" + new URLSearchParams({ q }));
   },
 
   searchOrderChange: (order) => {
     const urlParams = new URLSearchParams(window.location.search);
-    const q = urlParams.get("q");
+    const q = urlParams.get("q") ?? "";
     const genre = urlParams.get("genre") ?? "";
-    app.Router.go(`/movies?q=${q}&order=${order}&genre=${genre}`);
+    app.Router.go("/movies?" + new URLSearchParams({ q, order, genre }));
   },
   searchFilterChange: (genre) => {
     const urlParams = new URLSearchParams(window.location.search);
-    const q = urlParams.get("q");
+    const q = urlParams.get("q") ?? "";
     const order = urlParams.get("order") ?? "";
-    app.Router.go(`/movies?q=${q}&order=${order}&genre=${genre}`);
+    app.Router.go("/movies?" + new URLSearchParams({ q, order, genre }));
   },
   register: async (event) => {
     event.preventDefault();
